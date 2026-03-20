@@ -6,7 +6,10 @@ ARCH=$(uname -m)
 
 echo "Installing package dependencies..."
 echo "---------------------------------------------------------------"
-# pacman -Syu --noconfirm PACKAGESHERE
+pacman -Syu --noconfirm \
+    gtk3     \
+    libdecor \
+    sdl3
 
 echo "Installing debloated packages..."
 echo "---------------------------------------------------------------"
@@ -16,11 +19,21 @@ get-debloated-pkgs --add-common --prefer-nano
 #make-aur-package PACKAGENAME
 
 # If the application needs to be manually built that has to be done down here
+echo "Getting app..."
+echo "---------------------------------------------------------------"
+case "$ARCH" in # they use x64 and arm64 for the zip links
+	x86_64)  farch=x64;;
+	aarch64) farch=arm64;;
+esac
+ZIP_LINK=$(wget https://api.github.com/repos/drhelius/Gearsystem/releases -O - \
+      | sed 's/[()",{} ]/\n/g' | grep -o -m 1 "https.*ubuntu24.04-$farch.zip")
+echo "$ZIP_LINK" | awk -F'/' '{gsub(/^v/, "", $(NF-1)); print $(NF-1); exit}' > ~/version
+if ! wget --retry-connrefused --tries=30 "$ZIP_LINK" -O /tmp/app.zip 2>/tmp/download.log; then
+	cat /tmp/download.log
+	exit 1
+fi
 
-# if you also have to make nightly releases check for DEVEL_RELEASE = 1
-#
-# if [ "${DEVEL_RELEASE-}" = 1 ]; then
-# 	nightly build steps
-# else
-# 	regular build steps
-# fi
+mkdir -p ./AppDir/bin
+bsdtar -xvf /tmp/app.zip -C ./AppDir/bin
+rm -f ./AppDir/bin/README.txt
+wget -O ./AppDir/bin/gamecontrollerdb.txt https://raw.githubusercontent.com/mdqinc/SDL_GameControllerDB/master/gamecontrollerdb.txt
